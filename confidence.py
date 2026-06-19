@@ -24,9 +24,16 @@ def confidence_band(conf: float | None) -> str:
 def format_context(text: str, conf: float | None) -> str:
     """Build the context line injected into the LLM before it replies.
 
-    The confidence line is omitted when no score is available.
+    The LLM is given the qualitative band ("high"/"medium"/"low") rather than the
+    raw float, so it never has to compare numbers near the thresholds::
+
+        User said: "I need help with my order"
+        STT confidence: low
+
+    The raw numeric value is kept for the logs (see voice_agent). The confidence
+    line is omitted when no score is available.
     """
     line = f'User said: "{text}"'
     if conf is None:
         return line
-    return f"{line}\nSTT confidence: {conf:.2f}"
+    return f"{line}\nSTT confidence: {confidence_band(conf)}"

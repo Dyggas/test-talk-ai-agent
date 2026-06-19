@@ -26,14 +26,18 @@ def test_band_unknown():
 
 
 def test_format_with_confidence():
+    # The LLM gets the band label, not the raw number (0.42 -> "low").
     assert c.format_context("I need help with my order", 0.42) == (
-        'User said: "I need help with my order"\nSTT confidence: 0.42'
+        'User said: "I need help with my order"\nSTT confidence: low'
     )
 
 
-def test_format_rounding():
-    assert c.format_context("x", 0.4249).endswith("STT confidence: 0.42")
-    assert c.format_context("x", 0.4).endswith("STT confidence: 0.40")
+def test_format_uses_band_not_number():
+    # No raw float should leak into the LLM-facing line.
+    assert c.format_context("x", 0.9).endswith("STT confidence: high")
+    assert c.format_context("x", 0.7).endswith("STT confidence: medium")
+    assert c.format_context("x", 0.3).endswith("STT confidence: low")
+    assert "0." not in c.format_context("x", 0.42)
 
 
 def test_format_no_confidence():
@@ -43,4 +47,4 @@ def test_format_no_confidence():
 
 
 def test_format_empty_text():
-    assert c.format_context("", 0.5) == 'User said: ""\nSTT confidence: 0.50'
+    assert c.format_context("", 0.5) == 'User said: ""\nSTT confidence: low'
