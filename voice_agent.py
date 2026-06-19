@@ -83,7 +83,7 @@ class ConfidenceAgent(Agent):
 async def entrypoint(ctx: agents.JobContext) -> None:
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
-        llm=google.LLM(model="gemini-2.5-flash"),
+        llm=google.LLM(model="gemini-2.5-flash-lite"),
         tts=elevenlabs.TTS(),
         # We always rewrite the chat context in on_user_turn_completed (to add the
         # confidence line), which invalidates any speculative draft — so preemptive
