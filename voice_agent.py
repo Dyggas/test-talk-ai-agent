@@ -14,9 +14,10 @@ from typing import AsyncIterable
 from dotenv import load_dotenv
 from livekit import agents, rtc
 from livekit.agents import Agent, AgentSession, ModelSettings, stt
+from livekit.agents.llm import ChatContext, ChatMessage
 from livekit.plugins import deepgram, elevenlabs, google
 
-from confidence import HIGH, LOW
+from confidence import confidence_band, format_context
 
 load_dotenv()
 
@@ -28,14 +29,16 @@ class ConfidenceAgent(Agent):
         super().__init__(
             instructions=(
                 "You are a helpful, friendly voice assistant.\n"
-                "Each user message is annotated with an STT confidence score in [0, 1] "
-                "indicating how reliably their speech was transcribed.\n"
-                f"- confidence >= {HIGH}: answer normally.\n"
-                f"- confidence < {LOW}: do NOT assume what was said. Politely ask the user "
-                'to repeat or rephrase (e.g. "Sorry, I may have misheard you — could you '
-                'say that again?").\n'
-                "- in between: answer, but briefly confirm your understanding.\n"
-                "Keep replies concise and conversational. Never read the score aloud."
+                "Each user message is annotated with an STT confidence level — one of "
+                "high, medium, or low — indicating how reliably their speech was "
+                "transcribed.\n"
+                "- high: answer normally.\n"
+                "- low: do NOT assume what was said. Politely ask the user to repeat or "
+                'rephrase (e.g. "Sorry, I may have misheard you — could you say that '
+                'again?").\n'
+                "- medium: answer, but briefly confirm your understanding.\n"
+                "Keep replies concise and conversational. Never mention the confidence "
+                "level aloud."
             )
         )
         self._last_confidence: float | None = None
@@ -56,6 +59,25 @@ class ConfidenceAgent(Agent):
             ):
                 self._last_confidence = event.alternatives[0].confidence
             yield event
+
+    async def on_user_turn_completed(
+        self, turn_ctx: ChatContext, new_message: ChatMessage
+    ) -> None:
+        """Inject the transcript + last captured confidence into the LLM context."""
+        if self._last_confidence is None:
+            return  # no final transcript captured yet
+
+        transcript = new_message.text_content or ""
+        turn_ctx.add_message(
+            role="system",
+            content=format_context(transcript, self._last_confidence),
+        )
+        logger.info(
+            "transcript=%r confidence=%.2f band=%s",
+            transcript,
+            self._last_confidence,
+            confidence_band(self._last_confidence),
+        )
 
 
 async def entrypoint(ctx: agents.JobContext) -> None:
