@@ -85,6 +85,10 @@ async def entrypoint(ctx: agents.JobContext) -> None:
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
         tts=elevenlabs.TTS(),
+        # We always rewrite the chat context in on_user_turn_completed (to add the
+        # confidence line), which invalidates any speculative draft — so preemptive
+        # generation would just be discarded every turn. Turn it off.
+        preemptive_generation=False,
     )
     await session.start(room=ctx.room, agent=ConfidenceAgent())
     await session.generate_reply(
