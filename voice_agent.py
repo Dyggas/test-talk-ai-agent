@@ -9,10 +9,11 @@ this skeleton in the following commits.
 """
 
 import logging
+from typing import AsyncIterable
 
 from dotenv import load_dotenv
-from livekit import agents
-from livekit.agents import Agent, AgentSession
+from livekit import agents, rtc
+from livekit.agents import Agent, AgentSession, ModelSettings, stt
 from livekit.plugins import deepgram, elevenlabs, google
 
 from confidence import HIGH, LOW
@@ -38,6 +39,23 @@ class ConfidenceAgent(Agent):
             )
         )
         self._last_confidence: float | None = None
+
+    async def stt_node(
+        self,
+        audio: AsyncIterable[rtc.AudioFrame],
+        model_settings: ModelSettings,
+    ) -> AsyncIterable[stt.SpeechEvent | str]:
+        """Wrap the default Deepgram STT stream to capture the confidence score
+        from an STT event and re-yield it.
+        """
+        async for event in Agent.default.stt_node(self, audio, model_settings):
+            if (
+                isinstance(event, stt.SpeechEvent)
+                and event.type == stt.SpeechEventType.FINAL_TRANSCRIPT
+                and event.alternatives
+            ):
+                self._last_confidence = event.alternatives[0].confidence
+            yield event
 
 
 async def entrypoint(ctx: agents.JobContext) -> None:
